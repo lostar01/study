@@ -15,3 +15,13 @@ func ListDeployment(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, deployments)
 }
+
+func GetDeployment(c *gin.Context) {
+	namespace := c.Param("namespace")
+	name := c.Param("name")
+	deployment, err := service.GetDeployment(namespace, name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err.Error())
+	}
+	c.JSON(http.StatusOK, deployment)
+}
