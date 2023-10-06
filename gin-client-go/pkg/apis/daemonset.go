@@ -13,6 +13,7 @@ func GetDaemonSetList(c *gin.Context) {
 	daemonSetList, err := service.GetDaemonSetList(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, daemonSetList)
 }

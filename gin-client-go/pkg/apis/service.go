@@ -12,6 +12,7 @@ func GetServiceList(c *gin.Context) {
 	serviceList, err := service.GetServiceList(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, serviceList)
 }

@@ -11,6 +11,7 @@ func GetPvList(c *gin.Context) {
 	pvList, err := service.GetPvList()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, pvList)
 }

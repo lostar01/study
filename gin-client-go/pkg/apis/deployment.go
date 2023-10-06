@@ -12,6 +12,7 @@ func ListDeployment(c *gin.Context) {
 	deployments, err := service.ListDeployment(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
+		return
 	}
 	c.JSON(http.StatusOK, deployments)
 }
@@ -22,6 +23,7 @@ func GetDeployment(c *gin.Context) {
 	deployment, err := service.GetDeployment(namespace, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
+		return
 	}
 	c.JSON(http.StatusOK, deployment)
 }

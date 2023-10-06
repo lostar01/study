@@ -11,6 +11,7 @@ func GetNameSpace(c *gin.Context) {
 	namespaces, err := service.GetNameSpace()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err.Error())
+		return
 	}
 	c.JSON(http.StatusOK, namespaces)
 }

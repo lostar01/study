@@ -12,6 +12,7 @@ func GetSecretList(c *gin.Context) {
 	secretList, err := service.GetSecretList(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, secretList)
 }

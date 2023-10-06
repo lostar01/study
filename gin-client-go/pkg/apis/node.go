@@ -11,6 +11,7 @@ func GetNodeList(c *gin.Context) {
 	nodeList, err := service.GetNode()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, nodeList)
 }

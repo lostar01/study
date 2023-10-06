@@ -12,6 +12,7 @@ func GetConfigMapList(c *gin.Context) {
 	configMapList, err := service.GetConfigMapList(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, configMapList)
 }

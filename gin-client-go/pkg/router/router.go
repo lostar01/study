@@ -15,6 +15,7 @@ func InitRouter(r *gin.Engine) {
 	r.GET("/node/list", apis.GetNodeList)
 	r.GET("/pod/list/:namespace", apis.GetPodList)
 	r.GET("/pod/get/:namespace/:name", apis.GetPod)
+	r.GET("/pod/exec/:namespaceName/:podName/:containerName", apis.ExecContainer)
 	r.GET("/statefulset/list/:namespace", apis.GetStatefulSetList)
 	r.GET("/daemonset/list/:namespace", apis.GetDaemonSetList)
 	r.GET("/service/list/:namespace", apis.GetServiceList)

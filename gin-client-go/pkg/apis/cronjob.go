@@ -12,6 +12,7 @@ func GetCronJobList(c *gin.Context) {
 	cronJobList, err := service.GetCronJobList(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, cronJobList)
 }

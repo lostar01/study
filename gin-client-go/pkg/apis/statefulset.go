@@ -12,6 +12,7 @@ func GetStatefulSetList(c *gin.Context) {
 	statefulSetList, err := service.GetStatefulSetList(namespace)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, err)
+		return
 	}
 	c.JSON(http.StatusOK, statefulSetList)
 }
