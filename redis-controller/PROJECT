@@ -1,0 +1,16 @@
+domain: lostar.com
+layout:
+- go.kubebuilder.io/v3
+projectName: redis-controller
+repo: lostar.com/rediscluster
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: lostar.com
+  group: cluster
+  kind: Rediscluster
+  path: lostar.com/rediscluster/api/v1
+  version: v1
+version: "3"

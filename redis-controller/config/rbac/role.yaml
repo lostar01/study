@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - cluster.lostar.com
+  resources:
+  - redisclusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.lostar.com
+  resources:
+  - redisclusters/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - cluster.lostar.com
+  resources:
+  - redisclusters/status
+  verbs:
+  - get
+  - patch
+  - update

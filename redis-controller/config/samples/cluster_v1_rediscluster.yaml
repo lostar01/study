@@ -1,0 +1,6 @@
+apiVersion: cluster.lostar.com/v1
+kind: Rediscluster
+metadata:
+  name: rediscluster-sample
+spec:
+  # TODO(user): Add fields here
