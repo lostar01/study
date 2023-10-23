@@ -18,12 +18,14 @@ package controllers
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"math/rand"
+	"time"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,42 +79,10 @@ func (r *RedisclusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 	case clusterv1.CREATING:
-		// Create redis cluster
-		redisPod := &corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      redisCluster.Name,
-				Namespace: redisCluster.Namespace,
-				Labels: map[string]string{
-					"app":  redisCluster.Name,
-					"tire": "redis-cluster",
-				},
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  redisCluster.Spec.Name,
-						Image: redisCluster.Spec.Image,
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceMemory: resource.Quantity{
-									// Format: resource.Format(redisCluster.Spec.MemorySize),
-									Format: resource.Format("100Mi"),
-								},
-							},
-							Limits: corev1.ResourceList{
-								corev1.ResourceMemory: resource.Quantity{
-									// Format: resource.Format(redisCluster.Spec.MemorySize),
-									Format: resource.Format("100Mi"),
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		if err := r.Create(ctx, redisPod); err != nil {
-			return ctrl.Result{}, err
+		for i := 0; int32(i) < redisCluster.Spec.Replicas; i++ {
+			if err := r.CreatePod(ctx, &redisCluster); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
 
 		redisCluster.Status.Phase = clusterv1.RUNNING
@@ -120,13 +90,19 @@ func (r *RedisclusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 			return ctrl.Result{}, err
 		}
 	case clusterv1.RUNNING:
-		reportlog.Info("Reconciling Redis Cluster")
+		// List pod with labels
+		count, err := r.getRedisclusterPodsCount(ctx, &redisCluster)
+		if err != nil {
+			reportlog.Error(err, "Failed to list pods")
+			return ctrl.Result{}, err
+		}
+		reportlog.Info("Redis cluster relate pod", "count", count)
 
 	case clusterv1.FAILED:
 		reportlog.Info("Reconciling Redis Cluster")
 
 	case clusterv1.DELETING:
-
+		reportlog.Info("Reconciling Redis Cluster Deleting")
 	default:
 		redisCluster.Status.Phase = clusterv1.PENDING
 		if err := r.Status().Update(ctx, &redisCluster); err != nil {
@@ -136,6 +112,7 @@ func (r *RedisclusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	//delete resource when kubectl delete
 	if !redisCluster.ObjectMeta.DeletionTimestamp.IsZero() {
+
 		if err := r.CleanActualResource(reportlog, &redisCluster); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -162,23 +139,79 @@ func (r *RedisclusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *RedisclusterReconciler) CleanActualResource(reportlog logr.Logger, redisCluster *clusterv1.Rediscluster) error {
-	ctx := context.Background()
-	labelSelector := labels.Set{
-		"app":  redisCluster.Name,
-		"tire": "redis-cluster",
+func (r *RedisclusterReconciler) calculateMD5(input string) string {
+	hasher := md5.New()
+
+	hasher.Write([]byte(input))
+
+	hashBytes := hasher.Sum(nil)
+	md5String := hex.EncodeToString(hashBytes)
+
+	return md5String
+}
+
+func (r *RedisclusterReconciler) randomString(length int) string {
+	const charset = "qwertyuiopasdfghjklzxcvbnm1234567890"
+
+	rand.Seed(time.Now().UnixNano())
+
+	randomBytes := make([]byte, length)
+
+	for i := 0; i < length; i++ {
+		randomBytes[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(randomBytes)
+}
+
+func (r *RedisclusterReconciler) CreatePod(ctx context.Context, redisCluster *clusterv1.Rediscluster) error {
+	redisClusterPodFlag := r.calculateMD5(redisCluster.Spec.Name)[:9]
+	randomFlag := r.randomString(5)
+	// Create redis cluster
+	redisPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      redisCluster.Name + "-" + redisClusterPodFlag + "-" + randomFlag,
+			Namespace: redisCluster.Namespace,
+			Labels:    redisCluster.Labels,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:      redisCluster.Spec.Name,
+					Image:     redisCluster.Spec.Image,
+					Resources: redisCluster.Spec.Resources,
+					Env:       redisCluster.Spec.Env,
+					EnvFrom:   redisCluster.Spec.EnvFrom,
+				},
+			},
+		},
 	}
 
+	if err := r.Create(ctx, redisPod); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *RedisclusterReconciler) getRedisclusterPodsCount(ctx context.Context, redisCluster *clusterv1.Rediscluster) (int32, error) {
+	// List pod with labels
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList, client.InNamespace(redisCluster.Namespace), client.MatchingLabels(redisCluster.Labels)); err != nil {
+		return 0, err
+	}
+	return int32(len(podList.Items)), nil
+}
+
+func (r *RedisclusterReconciler) CleanActualResource(reportlog logr.Logger, redisCluster *clusterv1.Rediscluster) error {
+	ctx := context.Background()
 	redisCluster.Status.Phase = clusterv1.DELETING
 	if err := r.Status().Update(ctx, redisCluster); err != nil {
 		return err
 	}
-
 	// Delete the associated Pod with the label
-	if err := r.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(redisCluster.Namespace), client.MatchingLabels(labelSelector)); err != nil {
-		reportlog.Error(err, "Failed to delete Pod")
+	if err := r.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(redisCluster.Namespace), client.MatchingLabels(redisCluster.Labels)); err != nil {
+		reportlog.Error(err, "Failed to delete rediscluster resource")
 		return err
 	}
-	reportlog.Info("Deleted Pod")
+	reportlog.Info("Deleted rediscluster resource")
 	return nil
 }
