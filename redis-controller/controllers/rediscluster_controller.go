@@ -91,12 +91,27 @@ func (r *RedisclusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	case clusterv1.RUNNING:
 		// List pod with labels
-		count, err := r.getRedisclusterPodsCount(ctx, &redisCluster)
+		podList, err := r.getRedisclusterPodList(ctx, &redisCluster)
 		if err != nil {
 			reportlog.Error(err, "Failed to list pods")
 			return ctrl.Result{}, err
 		}
-		reportlog.Info("Redis cluster relate pod", "count", count)
+		count := int32(len(podList.Items))
+		if redisCluster.Spec.Replicas > count {
+			reportlog.Info("Reconciling Redis Cluster")
+			for i := count; int32(i) < redisCluster.Spec.Replicas; i++ {
+				if err := r.CreatePod(ctx, &redisCluster); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		} else if redisCluster.Spec.Replicas < count {
+			reportlog.Info("Reconciling Redis Cluster")
+
+			if err := r.DeletePod(ctx, &podList, redisCluster.Spec.Replicas); err != nil {
+				return ctrl.Result{}, err
+			}
+
+		}
 
 	case clusterv1.FAILED:
 		reportlog.Info("Reconciling Redis Cluster")
@@ -192,13 +207,28 @@ func (r *RedisclusterReconciler) CreatePod(ctx context.Context, redisCluster *cl
 	return nil
 }
 
-func (r *RedisclusterReconciler) getRedisclusterPodsCount(ctx context.Context, redisCluster *clusterv1.Rediscluster) (int32, error) {
+func (r *RedisclusterReconciler) DeletePod(ctx context.Context, podList *corev1.PodList, diresize int32) error {
+	removeSize := int32(len(podList.Items)) - diresize
+	for _, pod := range podList.Items {
+		if err := r.Delete(ctx, &pod); err != nil {
+			return err
+		}
+
+		removeSize--
+		if removeSize == 0 {
+			break
+		}
+
+	}
+	return nil
+}
+func (r *RedisclusterReconciler) getRedisclusterPodList(ctx context.Context, redisCluster *clusterv1.Rediscluster) (corev1.PodList, error) {
 	// List pod with labels
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList, client.InNamespace(redisCluster.Namespace), client.MatchingLabels(redisCluster.Labels)); err != nil {
-		return 0, err
+		return *podList, err
 	}
-	return int32(len(podList.Items)), nil
+	return *podList, nil
 }
 
 func (r *RedisclusterReconciler) CleanActualResource(reportlog logr.Logger, redisCluster *clusterv1.Rediscluster) error {
